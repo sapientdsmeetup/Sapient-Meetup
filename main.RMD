@@ -1,0 +1,307 @@
+---
+title: "Exercise: Logistic Regression"
+author: "Robin Browne"
+date: "March 28, 2018"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup,include=FALSE,echo=TRUE,warning = FALSE,message = FALSE,results='hide'}
+  knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE,warning = FALSE)
+  library(reticulate)
+  use_python("D:\\Python")
+  library(DT)
+  library(ggplot2)
+  library(dplyr)
+  library(hrbrthemes)
+  library(skimr)
+  library(scales)
+```
+
+### Logistic Regression
+As part of our learning exercise, we are looking to perform a logistic regression on a provided dataset.
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn import preprocessing
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+
+df1 = pd.read_csv("conversion_data.csv")
+```
+### Summarise Data
+Let's look at the data summary.
+```{r summary,results='asis'}
+  ## summary stats
+  skim(py$df1) %>% skimr::kable()
+```
+
+### Impact of Source on Conversion {.tabset}
+#### By New Visitors
+Let's look at conversion and new user share by country and traffic source.
+```{r facet_plot_nv,fig.align='center',fig.width=10}
+  ## filter out ages above 80
+  df2 <- py$df1 %>% filter(age <= 80)
+  ## summarise and plot
+  df2 %>%
+    select(country,source,new_user,converted) %>%
+    group_by(country,source) %>%
+    summarise(
+      users = n(),
+      new_user_share = sum(new_user)/users,
+      converted_share = sum(converted)/users
+    ) %>%
+  ggplot(aes(converted_share,new_user_share)) +
+    geom_jitter(aes(color=country, fill=country), size=3, shape=21, alpha=1/2) +
+    scale_color_ipsum() +
+    scale_fill_ipsum() +
+    facet_wrap(~source) +
+    theme_ipsum_ps(grid="XY", axis="xy") +
+    theme(legend.position="top") 
+```
+
+#### By Pages Viewed
+```{r facet_plot_pv,fig.align='center',fig.width=10}
+  ## summarise and plot
+  df2 %>%
+    select(country,source,total_pages_visited,converted) %>%
+    group_by(country,source) %>%
+    summarise(
+      users = n(),
+      avg_pv = sum(total_pages_visited)/users,
+      converted_share = sum(converted)/users
+    ) %>%
+  ggplot(aes(converted_share,avg_pv)) +
+    geom_jitter(aes(color=country, fill=country), size=3, shape=21, alpha=1/2) +
+    scale_color_ipsum() +
+    scale_fill_ipsum() +
+    facet_wrap(~source) +
+    theme_ipsum_ps(grid="XY", axis="xy") +
+    theme(legend.position="top") 
+```
+
+### Conversion by New User {.tabset}
+#### Age group and country
+Let's break down the data by the age groups and see performance differences.
+
+```{r plot_age_country,fig.align='center',fig.width=10}
+## summarise by age group and plot  
+df2 %>%
+  select(country,source,age,new_user,converted) %>%
+  group_by(gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T)) %>%
+  select(country,gr,converted,new_user) %>%
+  group_by(country,gr) %>%
+  summarise(
+    users = n(),
+    new_user_share = sum(new_user)/users,
+    converted_share = sum(converted)/users
+  ) %>%
+  ggplot(aes(converted_share,new_user_share)) +
+  geom_jitter(aes(color=country, fill=country), size=3, shape=21, alpha=1/2) +
+  scale_color_ipsum() +
+  scale_fill_ipsum() +
+  facet_wrap(~gr) +
+  theme_ipsum_ps(grid="XY", axis="xy") +
+  theme(legend.position="top") 
+```  
+
+#### Age group and source
+Let's break down the data by the age groups and see performance differences.
+
+```{r plot_age_source,fig.align='center',fig.width=10}
+## summarise by age group and plot  
+df2 %>%
+  select(country,source,age,new_user,converted) %>%
+  group_by(gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T)) %>%
+  select(source,gr,converted,new_user) %>%
+  group_by(source,gr) %>%
+  summarise(
+    users = n(),
+    new_user_share = sum(new_user)/users,
+    converted_share = sum(converted)/users
+  ) %>%
+  ggplot(aes(converted_share,new_user_share)) +
+  geom_jitter(aes(color=source, fill=source), size=3, shape=21, alpha=1/2) +
+  scale_color_ipsum() +
+  scale_fill_ipsum() +
+  facet_wrap(~gr) +
+  theme_ipsum_ps(grid="XY", axis="xy") +
+  theme(legend.position="top") 
+```  
+
+### Conversion by Pages Viewed {.tabset}
+
+#### Age group and country
+```{r pv_age_country,fig.align='center',fig.width=10}
+df2 %>%
+  select(country,source,age,new_user,converted,total_pages_visited) %>%
+  group_by(gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T)) %>%
+  select(country,gr,converted,total_pages_visited) %>%
+  group_by(country,gr) %>%
+  summarise(
+    users = n(),
+    avg_pages = sum(total_pages_visited)/users,
+    converted_share = sum(converted)/users
+  ) %>%
+  ggplot(aes(converted_share,avg_pages)) +
+  geom_jitter(aes(color=country, fill=country), size=3, shape=21, alpha=1/2) +
+  scale_color_ipsum() +
+  scale_fill_ipsum() +
+  facet_wrap(~gr) +
+  theme_ipsum_ps(grid="XY", axis="xy") +
+  theme(legend.position="top") 
+```
+
+#### Age group and source
+```{r pv_age_source,fig.align='center',fig.width=10}
+df2 %>%
+  select(country,source,age,new_user,converted,total_pages_visited) %>%
+  group_by(gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T)) %>%
+  select(source,gr,converted,total_pages_visited) %>%
+  group_by(source,gr) %>%
+  summarise(
+    users = n(),
+    avg_pages = sum(total_pages_visited)/users,
+    converted_share = sum(converted)/users
+  ) %>%
+  ggplot(aes(converted_share,avg_pages)) +
+  geom_jitter(aes(color=source, fill=source), size=3, shape=21, alpha=1/2) +
+  scale_color_ipsum() +
+  scale_fill_ipsum() +
+  facet_wrap(~gr) +
+  theme_ipsum_ps(grid="XY", axis="xy") +
+  theme(legend.position="top") 
+```
+
+### Bin both age and pages viewed {.tabset}
+
+#### By Country
+```{r bin_pv1,fig.align='center',fig.width=10}
+## bin the age and pages
+## do some binning
+df2 %>%
+  select(country,source,age,new_user,total_pages_visited,converted) %>%
+  mutate(
+    age_gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T),
+    pv_gr=cut(total_pages_visited,breaks=c(1,2,4,7,29),include.lowest= T)
+    ) %>%
+  select(country,age_gr,pv_gr,converted) %>%
+  group_by(country,age_gr,pv_gr) %>%
+  summarise(
+    users = n(),
+    converted_share = sum(converted)/sum(users)
+  ) %>%
+  ggplot(aes(converted_share,pv_gr)) +
+  geom_jitter(aes(color=country, fill=country), size=3, shape=21, alpha=1/2) +
+  scale_color_ipsum() +
+  scale_fill_ipsum() +
+  facet_wrap(~age_gr) +
+  theme_ipsum_ps(grid="XY", axis="xy") +
+  theme(legend.position="top") 
+ 
+```
+
+#### By Source
+```{r bin_pv2,fig.align='center',fig.width=10}
+ ## do the break up by source
+ df2 %>%
+   select(country,source,age,new_user,total_pages_visited,converted) %>%
+   mutate(
+     age_gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T),
+     pv_gr=cut(total_pages_visited,breaks=c(1,2,4,7,29),include.lowest= T)
+   ) %>%
+   select(source,age_gr,pv_gr,converted) %>%
+   group_by(source,age_gr,pv_gr) %>%
+   summarise(
+     users = n(),
+     converted_share = sum(converted)/sum(users)
+   ) %>%
+   ggplot(aes(converted_share,pv_gr)) +
+   geom_jitter(aes(color=source, fill=source), size=3, shape=21, alpha=1/2) +
+   scale_color_ipsum() +
+   scale_fill_ipsum() +
+   facet_wrap(~age_gr) +
+   theme_ipsum_ps(grid="XY", axis="xy") +
+   theme(legend.position="top") 
+```
+```{r}
+  df3 <- df2 %>%
+  select(country,source,age,new_user,total_pages_visited,converted) %>%
+  mutate(
+    age_gr=cut(age,breaks=c(17,24,30,36,80),include.lowest= T),
+    pv_gr=cut(total_pages_visited,breaks=c(1,2,4,7,29),include.lowest= T)
+    ) %>%
+  select(-total_pages_visited,-age,-new_user)
+```
+
+## Feature Selection
+Looks like pages viewed, age group, countries are the biggest predictors of conversion. We will now create dummy variables for them.
+
+```{python}
+## do some dummy data creation
+df4 = pd.get_dummies(data=r.df3, columns=['country', 'source','age_gr','pv_gr'])
+```
+
+**The dummy variable column names are:** *`r names(py$df4)`*
+
+### Do some model building
+Remove converted from dataset, and put converted in its own dataframe.
+```{python}
+# remove converted column
+X=df4.loc[:, df4.columns != 'converted']
+# create only converted df
+Y=df4['converted']
+```
+
+**Shape of X Dataset:** `r dim(py$X)[1] ` rows and `r dim(py$X)[2] ` columns.
+
+**Shape of X Dataset:** `r dim(py$Y)[1] ` rows. 
+
+**The columns names for X are:** *`r names(py$X)`*
+
+
+### Split into train and test
+70:30 split of data into train and test.
+```{python}
+#Split the data into training and test data (70/30 ratio)
+X_train,X_test,Y_train,Y_test=train_test_split(X,Y,test_size=0.3, random_state=100, stratify=Y)
+
+Conv_Train = np.sum(Y_train)
+Conv_Test = np.sum(Y_test)
+```
+
+**Shape of X Train:** `r dim(py$X_train)[1]` rows and `r dim(py$X_train)[2]` columns
+
+**Shape of X Test:** `r dim(py$X_test)[1]` rows and `r dim(py$X_test)[2]` columns
+
+**Shape of Y Train:** `r dim(py$Y_train)[1]` rows 
+
+**Shape of Y Test:** `r dim(py$Y_test)[1]` rows 
+
+
+```{python}
+#Build logisitic regression model and train it on training dataset
+logreg = LogisticRegression(class_weight='balanced').fit(X_train,Y_train)
+#Test the model on test dataset
+pred_logreg=logreg.predict(X_test)
+confusion = confusion_matrix(Y_test, pred_logreg,)
+print("Confusion matrix:\n{}".format(confusion))
+```
+
+Out of `r py$Conv_Test` converted users in test dataset, the model was correctly able to predict `r py$confusion[4]`. So, a *success rate* of about `r percent(py$confusion[4]/py$Conv_Test)` 
+
+```{python}
+from sklearn.metrics import roc_auc_score
+logreg_auc = roc_auc_score(Y_test, logreg.predict_proba(X_test)[:, 1])
+print("AUC for Logistic Regression: {:.3f}".format(logreg_auc))
+
+from sklearn.metrics import classification_report
+print(classification_report(Y_test, pred_logreg,
+                            target_names=["Non Converted", "Converted"]))
+```
+
+
+
+
